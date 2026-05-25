@@ -4,8 +4,14 @@ const COMPLEX_KEYWORDS = [
   "why", "describe", "tell us", "cover letter", "motivat", "explain",
   "about yourself", "background", "interest", "strength", "weakness",
   "challenge", "accomplish", "additional", "anything else", "comment",
-  "message", "statement", "essay", "experience with", "how did",
-  "how do", "what do", "what did",
+  "message", "statement", "essay", "experience with",
+  "how did", "how do", "how long", "how many",
+  "what do", "what did", "what are", "what is", "what was",
+  "when", "start date", "available", "earliest",
+  "salary", "compensation", "pay", "expectation",
+  "please", "briefly", "summarize", "share",
+  "sponsorship", "visa", "work authorization",
+  "tell me", "help us",
 ];
 
 export function classifyField(label: string, element: Element): FieldClass {
