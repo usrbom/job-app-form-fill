@@ -1,0 +1,7 @@
+extension/node_modules/
+extension/dist/
+.env
+*.local
+.DS_Store
+supabase/.temp/
+PLAN.md
