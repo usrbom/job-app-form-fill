@@ -115,7 +115,13 @@ function attachListeners(
 ): void {
   element.setAttribute("autocomplete", "off");
 
+  let blurTimer: ReturnType<typeof setTimeout> | null = null;
+
   element.addEventListener("focus", async () => {
+    if (blurTimer !== null) {
+      clearTimeout(blurTimer);
+      blurTimer = null;
+    }
     dismissActive();
 
     const cls = classifyField(label, element);
@@ -182,7 +188,8 @@ function attachListeners(
   });
 
   element.addEventListener("blur", () => {
-    setTimeout(() => {
+    blurTimer = setTimeout(() => {
+      blurTimer = null;
       if (!activeTooltip?.isContextInputOpen) dismissActive();
     }, 150);
   });
