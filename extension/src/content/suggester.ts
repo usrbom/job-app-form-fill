@@ -62,7 +62,9 @@ function applyValue(
 }
 
 function requestSuggestion(
-  label: string
+  label: string,
+  noCache = false,
+  userContext = ""
 ): Promise<{ reasoning: string; suggestion: string; source: string } | { error: string } | null> {
   return new Promise((resolve) => {
     try {
@@ -74,6 +76,8 @@ function requestSuggestion(
           jobDescription,
           maxLength: null,
           pathname: window.location.pathname,
+          noCache,
+          userContext,
         },
         (response: {
           ok: boolean;
@@ -115,7 +119,6 @@ function attachListeners(
     dismissActive();
 
     const cls = classifyField(label, element);
-    console.log(`[FormFill AI] "${label}" → ${cls}`);
     if (cls === "skip") return;
 
     if (cls === "simple") {
@@ -147,43 +150,84 @@ function attachListeners(
         onDismiss: dismissActive,
       });
 
-      const captured = activeTooltip;
-      const result = await requestSuggestion(label);
+      const runSuggestion = async (tooltip: typeof activeTooltip, noCache = false, userContext = "") => {
+        const result = await requestSuggestion(label, noCache, userContext);
 
-      if (captured !== activeTooltip) return;
+        if (tooltip !== activeTooltip) return;
 
-      if (!result) {
-        dismissActive();
-        return;
-      }
+        if (!result) {
+          dismissActive();
+          return;
+        }
 
-      if ("error" in result) {
-        const msg = result.error === "auth_expired"
-          ? "Session expired — open the FormFill AI popup to sign in again."
-          : "Could not generate suggestion. Try again later.";
-        captured.showError(msg);
-        return;
-      }
+        if ("error" in result) {
+          const msg = result.error === "auth_expired"
+            ? "Session expired — open the FormFill AI popup to sign in again."
+            : "Could not generate suggestion. Try again later.";
+          tooltip!.showError(msg);
+          return;
+        }
 
-      captured.resolve(result.reasoning, result.suggestion, result.source, () => {
-        applyValue(element, result.suggestion);
-        dismissActive();
-      });
+        tooltip!.resolve(
+          result.reasoning,
+          result.suggestion,
+          result.source,
+          () => { applyValue(element, result.suggestion); dismissActive(); },
+          (ctx: string) => { tooltip!.showLoading(); runSuggestion(tooltip, true, ctx); }
+        );
+      };
+
+      await runSuggestion(activeTooltip);
     }
   });
 
   element.addEventListener("blur", () => {
-    setTimeout(dismissActive, 150);
+    setTimeout(() => {
+      if (!activeTooltip?.isContextInputOpen) dismissActive();
+    }, 150);
   });
+}
+
+// Track elements that already have listeners so we never double-attach
+const attached = new WeakSet<Element>();
+
+function attachListenersOnce(
+  element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+  label: string
+): void {
+  if (attached.has(element)) return;
+  attached.add(element);
+  attachListeners(element, label);
+}
+
+function debounce(fn: () => void, ms: number): () => void {
+  let timer: ReturnType<typeof setTimeout>;
+  return () => {
+    clearTimeout(timer);
+    timer = setTimeout(fn, ms);
+  };
+}
+
+function scanAndAttach(): void {
+  const fields = detectFields();
+  for (const { element, label } of fields) {
+    if (!attached.has(element)) {
+      attachListenersOnce(element, label);
+    }
+  }
 }
 
 export function initSuggester(): void {
   jobDescription = extractJobDescription();
-  console.log(`[FormFill AI] JD extracted: ${jobDescription.length} chars`);
 
-  const fields = detectFields();
-  for (const { element, label } of fields) {
-    attachListeners(element, label);
-  }
-  console.log(`[FormFill AI] Watching ${fields.length} field(s) on ${window.location.hostname}`);
+  scanAndAttach();
+
+  const observer = new MutationObserver(debounce(() => {
+    if (!jobDescription) {
+      jobDescription = extractJobDescription();
+    }
+    scanAndAttach();
+  }, 300));
+
+  observer.observe(document.body, { childList: true, subtree: true });
 }

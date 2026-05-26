@@ -33,7 +33,8 @@ function buildPrompt(
   fieldLabel: string,
   jobDescription: string,
   maxLength: number | null,
-  profile: Record<string, unknown>
+  profile: Record<string, unknown>,
+  userContext = ""
 ): string {
   const personal = (profile.personal as Record<string, unknown>) ?? {};
   const experience = (profile.experience as unknown[]) ?? [];
@@ -62,7 +63,7 @@ ${jdBlock}
 
 CANDIDATE PROFILE:
 ${condensed}
-
+${userContext ? `\nUSER FEEDBACK ON PREVIOUS SUGGESTION:\n"${userContext}"\nAdjust the answer to incorporate this feedback.\n` : ""}
 Instructions:
 1. Write "reasoning": max 200 words. Think through how to arrive at the best answer — not just what the profile says, but what the question actually requires. Consider:
    - What is this question really asking for, and what makes a strong answer?
@@ -95,7 +96,7 @@ Deno.serve(async (req) => {
   const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(jwt);
   if (authError || !user) return new Response("Unauthorized", { status: 401 });
 
-  const { fieldLabel, pageTitle: _pageTitle, jobDescription = "", maxLength = null } = await req.json();
+  const { fieldLabel, pageTitle: _pageTitle, jobDescription = "", maxLength = null, userContext = "" } = await req.json();
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from("profiles")
@@ -120,7 +121,7 @@ Deno.serve(async (req) => {
       model: "llama-3.3-70b-versatile",
       max_tokens: 800,
       temperature: 0.4,
-      messages: [{ role: "user", content: buildPrompt(fieldLabel, jobDescription, maxLength, profile) }],
+      messages: [{ role: "user", content: buildPrompt(fieldLabel, jobDescription, maxLength, profile, userContext) }],
     }),
   });
 

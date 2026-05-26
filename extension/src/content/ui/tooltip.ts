@@ -107,6 +107,58 @@ const CSS = `
     border: 1px solid #e5e7eb !important;
   }
 
+  .regenerate {
+    background: transparent;
+    color: #6b7280;
+    border: none !important;
+    padding: 4px 6px;
+    font-size: 11px;
+    display: none;
+  }
+
+  .context-row {
+    display: none;
+    gap: 6px;
+    margin-top: 8px;
+    align-items: center;
+  }
+
+  .context-input {
+    flex: 1;
+    font-size: 12px;
+    padding: 4px 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    outline: none;
+    font-family: inherit;
+    color: #111827;
+    min-width: 0;
+  }
+
+  .context-input:focus { border-color: #2563eb; }
+
+  .context-submit {
+    background: #2563eb;
+    color: #fff;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    cursor: pointer;
+    border: none !important;
+    white-space: nowrap;
+  }
+
+  .context-cancel {
+    font-size: 11px;
+    color: #9ca3af;
+    cursor: pointer;
+    background: none;
+    border: none !important;
+    padding: 0 2px;
+    font-weight: 500;
+  }
+
   .toggle {
     display: none;
     align-items: center;
@@ -161,6 +213,7 @@ export interface TooltipOptions {
   source: string;
   onAccept: () => void;
   onDismiss: () => void;
+  onRegenerate?: (context: string) => void;
   loading?: boolean;
 }
 
@@ -171,13 +224,19 @@ export class Tooltip {
   private answerLabelEl: HTMLDivElement;
   private loadingEl: HTMLDivElement;
   private acceptBtn: HTMLButtonElement;
+  private regenerateBtn: HTMLButtonElement;
   private toggleBtn: HTMLButtonElement;
   private chevronEl: HTMLSpanElement;
   private sourceEl: HTMLSpanElement;
   private onAccept: () => void;
+  private onRegenerate: ((context: string) => void) | undefined;
+  private contextRowEl: HTMLDivElement;
+  private contextInputEl: HTMLInputElement;
+  private actionsEl: HTMLDivElement;
 
-  constructor({ anchor, value, source, onAccept, onDismiss, loading = false }: TooltipOptions) {
+  constructor({ anchor, value, source, onAccept, onDismiss, onRegenerate, loading = false }: TooltipOptions) {
     this.onAccept = onAccept;
+    this.onRegenerate = onRegenerate;
     this.host = document.createElement("div");
     this.host.style.cssText =
       "position:fixed;z-index:2147483647;pointer-events:auto;";
@@ -227,8 +286,8 @@ export class Tooltip {
     this.valueEl.style.display = loading ? "none" : "block";
 
     // Actions
-    const actions = document.createElement("div");
-    actions.className = "actions";
+    this.actionsEl = document.createElement("div");
+    this.actionsEl.className = "actions";
     this.acceptBtn = document.createElement("button");
     this.acceptBtn.className = "accept";
     this.acceptBtn.textContent = "Use this";
@@ -244,8 +303,53 @@ export class Tooltip {
       e.preventDefault();
       onDismiss();
     });
-    actions.appendChild(this.acceptBtn);
-    actions.appendChild(dismissBtn);
+
+    this.regenerateBtn = document.createElement("button");
+    this.regenerateBtn.className = "regenerate";
+    this.regenerateBtn.textContent = "↺ Regenerate";
+    this.regenerateBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      this.showContextInput();
+    });
+
+    this.actionsEl.appendChild(this.acceptBtn);
+    this.actionsEl.appendChild(dismissBtn);
+    this.actionsEl.appendChild(this.regenerateBtn);
+
+    // Context input row (shown after clicking Regenerate)
+    this.contextRowEl = document.createElement("div");
+    this.contextRowEl.className = "context-row";
+    this.contextInputEl = document.createElement("input");
+    this.contextInputEl.className = "context-input";
+    this.contextInputEl.placeholder = "Add context to improve this… (optional)";
+    this.contextInputEl.type = "text";
+    const contextSubmitBtn = document.createElement("button");
+    contextSubmitBtn.className = "context-submit";
+    contextSubmitBtn.textContent = "Generate →";
+    const contextCancelBtn = document.createElement("button");
+    contextCancelBtn.className = "context-cancel";
+    contextCancelBtn.textContent = "Cancel";
+
+    const submitContext = (e: MouseEvent | KeyboardEvent) => {
+      e.preventDefault();
+      const ctx = this.contextInputEl.value.trim();
+      this.hideContextInput();
+      this.onRegenerate?.(ctx);
+    };
+
+    contextSubmitBtn.addEventListener("mousedown", submitContext);
+    this.contextInputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submitContext(e as unknown as KeyboardEvent);
+      if (e.key === "Escape") { e.preventDefault(); this.hideContextInput(); }
+    });
+    contextCancelBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      this.hideContextInput();
+    });
+
+    this.contextRowEl.appendChild(this.contextInputEl);
+    this.contextRowEl.appendChild(contextSubmitBtn);
+    this.contextRowEl.appendChild(contextCancelBtn);
 
     // Collapsible "Why this answer?" toggle
     this.toggleBtn = document.createElement("button");
@@ -294,7 +398,8 @@ export class Tooltip {
     wrap.appendChild(this.loadingEl);
     wrap.appendChild(this.answerLabelEl);
     wrap.appendChild(this.valueEl);
-    wrap.appendChild(actions);
+    wrap.appendChild(this.actionsEl);
+    wrap.appendChild(this.contextRowEl);
     wrap.appendChild(this.toggleBtn);
     wrap.appendChild(this.reasoningEl);
     shadow.appendChild(wrap);
@@ -308,18 +413,49 @@ export class Tooltip {
     const errEl = document.createElement("div");
     errEl.className = "error-msg";
     errEl.textContent = message;
-    // Insert before actions (which holds Dismiss)
     this.loadingEl.insertAdjacentElement("afterend", errEl);
   }
 
-  resolve(reasoning: string, answer: string, source: string, newOnAccept: () => void): void {
+  get isContextInputOpen(): boolean {
+    return this.contextRowEl.style.display === "flex";
+  }
+
+  private showContextInput(): void {
+    this.actionsEl.style.display = "none";
+    this.contextRowEl.style.display = "flex";
+    this.contextInputEl.value = "";
+    this.contextInputEl.focus();
+  }
+
+  private hideContextInput(): void {
+    this.contextRowEl.style.display = "none";
+    this.actionsEl.style.display = "flex";
+  }
+
+  showLoading(): void {
+    this.contextRowEl.style.display = "none";
+    this.actionsEl.style.display = "flex";
+    this.answerLabelEl.style.display = "none";
+    this.valueEl.style.display = "none";
+    this.acceptBtn.style.display = "none";
+    this.regenerateBtn.style.display = "none";
+    this.toggleBtn.style.display = "none";
+    this.reasoningEl.style.display = "none";
+    this.chevronEl.classList.remove("open");
+    this.sourceEl.textContent = "generating…";
+    this.loadingEl.style.display = "flex";
+  }
+
+  resolve(reasoning: string, answer: string, source: string, newOnAccept: () => void, newOnRegenerate?: (ctx: string) => void): void {
     this.onAccept = newOnAccept;
+    if (newOnRegenerate) this.onRegenerate = newOnRegenerate;
     this.sourceEl.textContent = source;
     this.answerLabelEl.style.display = "block";
     this.valueEl.textContent = answer;
     this.loadingEl.style.display = "none";
     this.valueEl.style.display = "block";
     this.acceptBtn.style.display = "inline-block";
+    this.regenerateBtn.style.display = "inline-block";
 
     if (reasoning) {
       this.reasoningEl.textContent = reasoning;

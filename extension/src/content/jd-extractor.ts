@@ -1,12 +1,19 @@
 const SELECTORS = [
-  "#content",                                        // Greenhouse
+  // Workday
+  "[data-automation-id='job-posting-details']",
+  "[data-automation-id='jobPostingDescription']",
+  "[data-automation-id='richText']",
+  // Greenhouse
+  "#content",
   ".job__description",
   "[data-testid='job-description']",
-  "[data-automation-id='job-posting-details']",      // Workday
-  ".posting-description",                            // Lever
+  // Lever
+  ".posting-description",
+  // Generic
   "[class*='job-description']",
   "[class*='jobDescription']",
   "[class*='job_description']",
+  "[class*='job-detail']",
   "article",
   "main",
 ];

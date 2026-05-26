@@ -47,6 +47,8 @@ chrome.runtime.onMessage.addListener(
       jobDescription?: string;
       maxLength?: number | null;
       pathname?: string;
+      noCache?: boolean;
+      userContext?: string;
     },
     _sender,
     sendResponse
@@ -63,11 +65,12 @@ chrome.runtime.onMessage.addListener(
         jobDescription = "",
         maxLength = null,
         pathname = "",
+        noCache = false,
+        userContext = "",
       } = message;
 
-      // Cache keyed on label + pathname so different jobs get fresh suggestions
       const key = await cacheKey(label, pathname);
-      const cached = await getCached(key);
+      const cached = noCache ? null : await getCached(key);
       if (cached) {
         try {
           const parsed = JSON.parse(cached) as { reasoning: string; suggestion: string };
@@ -80,11 +83,9 @@ chrome.runtime.onMessage.addListener(
 
       const jwt = await getJwt();
       if (!jwt) {
-        console.error("[FormFill AI] JWT not found in storage");
         sendResponse({ ok: false, error: "Not authenticated" });
         return;
       }
-      console.log("[FormFill AI] JWT found, calling Edge Function...");
 
       try {
         const res = await fetch(EDGE_FUNCTION_URL, {
@@ -93,7 +94,7 @@ chrome.runtime.onMessage.addListener(
             Authorization: `Bearer ${jwt}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ fieldLabel: label, pageTitle, jobDescription, maxLength }),
+          body: JSON.stringify({ fieldLabel: label, pageTitle, jobDescription, maxLength, userContext }),
         });
 
         if (!res.ok) {

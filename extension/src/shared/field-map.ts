@@ -55,6 +55,8 @@ const FIELD_MAP: Record<string, string> = {
   "personal website": "personal.portfolioUrl",
   "website": "personal.portfolioUrl",
   "website url": "personal.portfolioUrl",
+  "url": "personal.portfolioUrl",
+  "your website": "personal.portfolioUrl",
 
   // ── Education (most recent = index 0) ────────────────────────
   "school": "education.0.institution",
