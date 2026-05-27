@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
     },
     body: JSON.stringify({
       model: "llama-3.3-70b-versatile",
-      max_tokens: 800,
+      max_tokens: 1500,
       temperature: 0.4,
       messages: buildMessages(safeLabel, safeJd, maxLength, profile, safeContext),
     }),

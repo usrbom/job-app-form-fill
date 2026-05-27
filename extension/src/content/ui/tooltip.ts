@@ -77,6 +77,8 @@ const CSS = `
     margin-bottom: 8px;
     word-break: break-word;
     white-space: pre-wrap;
+    max-height: 180px;
+    overflow-y: auto;
   }
 
   .actions {
